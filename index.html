@@ -3,122 +3,108 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Detector de Color</title>
+  <title>Detector de Emociones 😊</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
       background-color: #111;
-      color: white;
+      color: #fff;
       text-align: center;
       margin: 0;
       padding: 0;
     }
     video {
+      border-radius: 10px;
+      border: 3px solid #fff;
       width: 80%;
       max-width: 640px;
-      border: 3px solid white;
-      border-radius: 12px;
       margin-top: 20px;
     }
     canvas {
-      display: none;
+      position: absolute;
+      left: 0;
+      top: 0;
     }
     h1 {
       margin-top: 20px;
     }
-    .color-box {
-      width: 100px;
-      height: 100px;
-      border-radius: 12px;
-      margin: 20px auto;
-      border: 3px solid #fff;
+    #emotion {
+      margin-top: 20px;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #00e676;
+      text-shadow: 0 0 10px #00e676;
     }
   </style>
 </head>
 <body>
-  <h1>🎨 Detector de Color</h1>
-  <video id="video" autoplay></video>
-  <canvas id="canvas"></canvas>
-  <div class="color-box" id="colorBox"></div>
-  <h2 id="colorName">Detectando...</h2>
+  <h1>🧠 Detector de Emociones</h1>
+  <video id="video" autoplay muted></video>
+  <h2 id="emotion">Cargando modelo...</h2>
 
   <script>
     const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const colorBox = document.getElementById("colorBox");
-    const colorName = document.getElementById("colorName");
+    const emotionText = document.getElementById("emotion");
 
-    // Pedir permiso para usar la cámara
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        video.srcObject = stream;
-        detectarColor();
-      })
-      .catch(err => {
-        console.error("Error al acceder a la cámara:", err);
-        colorName.textContent = "Error: No se pudo acceder a la cámara";
-      });
+    // Cargar modelos preentrenados
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights/"),
+      faceapi.nets.faceExpressionNet.loadFromUri("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights/")
+    ]).then(startVideo);
 
-    // Detectar color cada cierto tiempo
-    function detectarColor() {
-      const ctx = canvas.getContext("2d");
-
-      setInterval(() => {
-        // Dibujar un frame de la cámara en el canvas
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Tomar una pequeña región central
-        const cx = canvas.width / 2;
-        const cy = canvas.height / 2;
-        const size = 20;
-        const imgData = ctx.getImageData(cx - size / 2, cy - size / 2, size, size);
-
-        // Promediar color RGB
-        let [r, g, b] = [0, 0, 0];
-        for (let i = 0; i < imgData.data.length; i += 4) {
-          r += imgData.data[i];
-          g += imgData.data[i + 1];
-          b += imgData.data[i + 2];
-        }
-        const n = imgData.data.length / 4;
-        r = Math.round(r / n);
-        g = Math.round(g / n);
-        b = Math.round(b / n);
-
-        // Determinar color más cercano
-        const detected = getColorName(r, g, b);
-
-        // Mostrar resultado
-        colorBox.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-        colorName.textContent = detected.word;
-      }, 300);
+    function startVideo() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+          emotionText.textContent = "Detectando rostro...";
+        })
+        .catch(err => {
+          console.error(err);
+          emotionText.textContent = "No se pudo acceder a la cámara 😢";
+        });
     }
 
-    // Palabras asociadas a colores
-    const COLORS = [
-      { name: "rojo", rgb: [255, 0, 0], word: "ALTO" },
-      { name: "verde", rgb: [0, 255, 0], word: "SIGUE" },
-      { name: "azul", rgb: [0, 0, 255], word: "INFO" },
-      { name: "amarillo", rgb: [255, 255, 0], word: "PRECAUCIÓN" },
-      { name: "blanco", rgb: [255, 255, 255], word: "LIMPIO" },
-      { name: "negro", rgb: [0, 0, 0], word: "OBSTÁCULO" },
-    ];
+    video.addEventListener("play", () => {
+      const canvas = faceapi.createCanvasFromMedia(video);
+      document.body.append(canvas);
 
-    function getColorName(r, g, b) {
-      let closest = COLORS[0];
-      let minDist = Infinity;
-      for (const c of COLORS) {
-        const [cr, cg, cb] = c.rgb;
-        const dist = Math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2);
-        if (dist < minDist) {
-          minDist = dist;
-          closest = c;
+      const displaySize = { width: video.width, height: video.height };
+      faceapi.matchDimensions(canvas, displaySize);
+
+      setInterval(async () => {
+        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+          .withFaceExpressions();
+
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+
+        faceapi.draw.drawDetections(canvas, resizedDetections);
+        faceapi.draw.drawFaceExpressions(canvas, resizedDetections);
+
+        if (detections.length > 0) {
+          // Tomar la emoción con mayor probabilidad
+          const expressions = detections[0].expressions;
+          const emotion = Object.keys(expressions).reduce((a, b) =>
+            expressions[a] > expressions[b] ? a : b
+          );
+
+          const emojis = {
+            happy: "😄 Feliz",
+            sad: "😢 Triste",
+            angry: "😠 Enojado",
+            surprised: "😲 Sorprendido",
+            disgusted: "🤢 Disgustado",
+            fearful: "😨 Asustado",
+            neutral: "😐 Neutral"
+          };
+
+          emotionText.textContent = emojis[emotion] || emotion;
+        } else {
+          emotionText.textContent = "Sin rostro detectado 👀";
         }
-      }
-      return closest;
-    }
+      }, 500);
+    });
   </script>
 </body>
 </html>
