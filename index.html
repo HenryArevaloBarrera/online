@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Detector de emociones amigable</title>
+<title>Detector de emociones con ojos</title>
 <style>
   body {
     margin:0;
@@ -74,7 +74,7 @@
 </head>
 <body>
 
-<h1>Detector de emociones 🎨</h1>
+<h1>Detector de emociones 🎨👀</h1>
 <div id="container">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="overlayCanvas"></canvas>
@@ -87,7 +87,7 @@
 </div>
 
 <div class="note">
-  Coloca una tarjeta o color dentro del recuadro central.<br>
+  Coloca una tarjeta o color dentro del círculo central.<br>
   Necesitas HTTPS o localhost para que la cámara funcione.
 </div>
 
@@ -101,7 +101,7 @@ const COLOR_WORD_MAP = {
   black: { word:'tristeza', face:'😢', phrase:'Hoy estás triste , ánimo, todo pasará', bg:'#a9a9a9' },
   orange: { word:'entusiasmo', face:'🤩', phrase:'Se nota tu entusiasmo , ¡brillante!', bg:'#f9ab5e' },
   purple: { word:'misterio', face:'🧐', phrase:'Hoy hay un toque de misterio , curioso', bg:'#cba0ff' },
-  pink: { word:'cariño', face:'🥰', phrase:'Hoy sientes cariño, hermoso', bg:'#f7a8b8' }
+  pink: { word:'cariño', face:'🥰', phrase:'Hoy sientes cariño ', bg:'#f7a8b8' }
 };
 
 const HSV_RANGES = {
@@ -128,7 +128,6 @@ let rafId = null;
 let lastDetected = null;
 let speaking = false;
 
-// Conversión RGB -> HSV
 function rgbToHsv(r,g,b){
   r/=255; g/=255; b/=255;
   const mx=Math.max(r,g,b), mn=Math.min(r,g,b), diff=mx-mn;
@@ -148,7 +147,6 @@ function inRangeHSV(hsv, low, high){
   return H>=low[0] && H<=high[0] && S>=low[1] && S<=high[1] && V>=low[2] && V<=high[2];
 }
 
-// Detección de color
 function detectColor(imageData, box){
   const {data,width,height}=imageData;
   const x1=Math.max(0,Math.floor(box.x));
@@ -181,35 +179,87 @@ function detectColor(imageData, box){
   return ratio>=PERCENT_THRESHOLD ? {color:best, ratio} : {color:null, ratio};
 }
 
-// Dibujar overlay
+// Dibujar overlay circular con ojos animados
 function drawOverlay(ctx, box, detected){
   const W=ctx.canvas.width, H=ctx.canvas.height;
   ctx.clearRect(0,0,W,H);
+
+  // Fondo semi-transparente
   ctx.fillStyle='rgba(255,255,255,0.2)';
   ctx.fillRect(0,0,W,H);
-  ctx.clearRect(box.x, box.y, box.w, box.h);
-  ctx.strokeStyle='#6a8caf'; ctx.lineWidth=4;
-  ctx.strokeRect(box.x, box.y, box.w, box.h);
 
-  ctx.font=`${Math.round(Math.min(W,H)*0.1)}px sans-serif`;
+  // Zona circular
+  const cx=box.x+box.w/2;
+  const cy=box.y+box.h/2;
+  const radius=box.w/2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx,cy,radius,0,2*Math.PI);
+  ctx.clip();
+
+  ctx.drawImage(video,0,0,W,H);
+  ctx.restore();
+
+  // Dibujar círculo borde
+  ctx.beginPath();
+  ctx.arc(cx,cy,radius,0,2*Math.PI);
+  ctx.strokeStyle='#6a8caf'; ctx.lineWidth=4;
+  ctx.stroke();
+
+  // Ojos animados
+  const eyeOffsetX = radius*0.5;
+  const eyeOffsetY = radius*0.3;
+  const eyeRadius = radius*0.15;
+  const pupilRadius = radius*0.07;
+
+  let emotion = detected.color && COLOR_WORD_MAP[detected.color]? detected.color : null;
+  let pupilMove = 0;
+  if(emotion==='enojo') pupilMove=5;
+  if(emotion==='alegría') pupilMove=-5;
+  if(emotion==='tristeza') pupilMove=3;
+  if(emotion==='energía') pupilMove=-3;
+  if(emotion==='calma') pupilMove=0;
+
+  // Ojo izquierdo
+  ctx.beginPath();
+  ctx.arc(cx-eyeOffsetX, cy-eyeOffsetY, eyeRadius, 0, 2*Math.PI);
+  ctx.fillStyle='white';
+  ctx.fill();
+  ctx.strokeStyle='#333'; ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx-eyeOffsetX+pupilMove, cy-eyeOffsetY, pupilRadius, 0, 2*Math.PI);
+  ctx.fillStyle='black'; ctx.fill();
+
+  // Ojo derecho
+  ctx.beginPath();
+  ctx.arc(cx+eyeOffsetX, cy-eyeOffsetY, eyeRadius, 0, 2*Math.PI);
+  ctx.fillStyle='white';
+  ctx.fill();
+  ctx.strokeStyle='#333'; ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx+eyeOffsetX+pupilMove, cy-eyeOffsetY, pupilRadius, 0, 2*Math.PI);
+  ctx.fillStyle='black'; ctx.fill();
+
+  // Emoji y texto
+  ctx.font=`${Math.round(Math.min(W,H)*0.08)}px sans-serif`;
   ctx.textAlign='center'; ctx.textBaseline='middle';
   const face = detected.color && COLOR_WORD_MAP[detected.color]? COLOR_WORD_MAP[detected.color].face:'❓';
-  ctx.fillText(face, box.x+box.w/2, box.y+box.h/2);
+  ctx.fillText(face, cx, cy+radius*0.5);
 
   ctx.font=`${Math.round(Math.min(W,H)*0.05)}px sans-serif`;
   ctx.fillStyle='#333';
   const label = detected.color ? COLOR_WORD_MAP[detected.color].word : 'DESCONOCIDO';
-  ctx.fillText(label, box.x+box.w/2, box.y+box.h+40);
+  ctx.fillText(label, cx, cy+radius*0.8);
 }
 
-// Elegir voz amistosa
 function getFriendlyVoice() {
   const voices = window.speechSynthesis.getVoices();
   const friendly = voices.find(v => v.lang.startsWith('es') && v.name.toLowerCase().includes('female'));
   return friendly || voices[0];
 }
 
-// Hablar frase
 function speakPhrase(text){
   if(!text || speaking) return;
   speaking=true;
@@ -223,7 +273,6 @@ function speakPhrase(text){
   window.speechSynthesis.speak(utter);
 }
 
-// Cámara
 async function startCamera(){
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
@@ -247,7 +296,6 @@ function stopCamera(){
   statusEl.textContent='Cámara detenida';
 }
 
-// Loop de detección
 function loop(){
   const ctx=overlay.getContext('2d');
   const tmp=document.createElement('canvas');
@@ -268,12 +316,10 @@ function loop(){
     const detected=detectColor(imageData, box);
     drawOverlay(ctx, box, detected);
 
-    // Cambiar fondo según emoción
     if(detected.color && COLOR_WORD_MAP[detected.color]){
       document.body.style.background = COLOR_WORD_MAP[detected.color].bg;
     }
 
-    // Hablar frase
     if(detected.color && !speaking && detected.color!==lastDetected){
       lastDetected=detected.color;
       speakPhrase(COLOR_WORD_MAP[detected.color].phrase);
@@ -291,4 +337,3 @@ window.addEventListener('beforeunload', stopCamera);
 </script>
 </body>
 </html>
-
