@@ -3,78 +3,351 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Detector de emociones con ojos</title>
+<title>Detector de Emociones</title>
 <style>
+  :root {
+    --primary-color: #6a8caf;
+    --secondary-color: #8bb3d1;
+    --background-color: #f0f4f8;
+    --card-color: #ffffff;
+    --shadow-color: rgba(0,0,0,0.1);
+    --transition-speed: 0.3s;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
   body {
-    margin:0;
-    font-family:'Segoe UI', Roboto, sans-serif;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:flex-start;
-    background:#f0f4f8;
-    min-height:100vh;
-    gap:16px;
-    padding:16px;
+    margin: 0;
+    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh;
+    gap: 20px;
+    padding: 20px;
     transition: background 1s ease;
+    overflow-x: hidden;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 10px;
   }
 
   h1 {
-    color:#6a8caf;
-    font-size:2em;
-    text-align:center;
+    color: var(--primary-color);
+    font-size: 2.5em;
+    text-align: center;
+    margin: 0;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    position: relative;
+    display: inline-block;
+  }
+
+  h1::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    border-radius: 2px;
+  }
+
+  .subtitle {
+    color: #666;
+    font-size: 1.1em;
+    margin-top: 10px;
   }
 
   #container {
-    position:relative;
-    max-width:720px;
-    width:100%;
-    border-radius:16px;
-    overflow:hidden;
-    box-shadow:0 8px 20px rgba(0,0,0,0.1);
-    background:#fff;
+    position: relative;
+    max-width: 720px;
+    width: 100%;
+    border-radius: 25px;
+    overflow: hidden;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+    background: var(--card-color);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+  }
+
+  #container:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
   }
 
   video, canvas {
-    width:100%;
-    height:auto;
-    display:block;
+    width: 100%;
+    height: auto;
+    display: block;
   }
 
   #overlayCanvas {
-    position:absolute;
-    top:0; left:0;
+    position: absolute;
+    top: 0;
+    left: 0;
   }
 
   .controls {
-    display:flex;
-    gap:12px;
-    align-items:center;
-    margin-top:8px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    backdrop-filter: blur(5px);
   }
 
   button {
-    padding:10px 18px;
-    border:none;
-    border-radius:12px;
-    background:#6a8caf;
-    color:#fff;
-    font-weight:bold;
-    cursor:pointer;
-    transition:0.2s;
-    box-shadow:0 4px 8px rgba(0,0,0,0.1);
+    padding: 12px 24px;
+    border: none;
+    border-radius: 50px;
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
   }
 
-  button:hover { background:#8bb3d1; }
+  button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transition: left 0.5s;
+  }
 
-  .status { font-size:16px; min-width:200px; }
+  button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+  }
 
-  .note { font-size:14px; color:#555; text-align:center; max-width:600px; }
+  button:hover::before {
+    left: 100%;
+  }
+
+  button:active {
+    transform: translateY(1px);
+  }
+
+  .status {
+    font-size: 16px;
+    min-width: 200px;
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 10px;
+    text-align: center;
+    font-weight: 500;
+    transition: all var(--transition-speed);
+  }
+
+  .status.active {
+    background: rgba(106, 140, 175, 0.2);
+    color: var(--primary-color);
+  }
+
+  .emotion-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 20px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    min-width: 250px;
+    transition: all var(--transition-speed);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .emotion-display::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.5s ease;
+  }
+
+  .emotion-display.active::before {
+    transform: scaleX(1);
+  }
+
+  .emotion-emoji {
+    font-size: 4em;
+    transition: transform 0.5s;
+    filter: drop-shadow(0 3px 5px rgba(0,0,0,0.2));
+  }
+
+  .emotion-emoji.active {
+    transform: scale(1.2);
+  }
+
+  .emotion-text {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: var(--primary-color);
+    text-align: center;
+  }
+
+  .emotion-phrase {
+    font-size: 1.1em;
+    text-align: center;
+    font-style: italic;
+    color: #666;
+    max-width: 300px;
+  }
+
+  .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    max-width: 600px;
+  }
+
+  .color-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 8px;
+    border-radius: 10px;
+    transition: all var(--transition-speed);
+    cursor: pointer;
+  }
+
+  .color-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 10px rgba(0,0,0,0.1);
+  }
+
+  .color-sample {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+
+  .color-name {
+    font-size: 0.8em;
+    color: #555;
+  }
+
+  .note {
+    font-size: 14px;
+    color: #555;
+    text-align: center;
+    max-width: 600px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    line-height: 1.5;
+  }
+
+  .footer {
+    margin-top: 20px;
+    font-size: 0.9em;
+    color: #777;
+    text-align: center;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+
+  .pulse {
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+  }
+
+  .float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes emotionChange {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .emotion-change {
+    animation: emotionChange 0.5s ease-out;
+  }
+
+  @keyframes confetti {
+    0% { transform: translateY(0) rotate(0); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+  }
+
+  .confetti {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    background: var(--confetti-color);
+    opacity: 0;
+    animation: confetti 3s ease-in forwards;
+  }
+
+  @media (max-width: 768px) {
+    h1 {
+      font-size: 2em;
+    }
+    
+    .controls {
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .color-palette {
+      max-width: 100%;
+    }
+  }
 </style>
 </head>
 <body>
 
-<h1>Detector de emociones 🎨👀</h1>
+<div class="header">
+  <h1>Detector de Emociones</h1>
+  <div class="subtitle">Descubre tus emociones a través de los colores</div>
+</div>
+
 <div id="container">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="overlayCanvas"></canvas>
@@ -86,22 +359,71 @@
   <button id="stopBtn">Detener</button>
 </div>
 
+<div class="emotion-display" id="emotionDisplay">
+  <div class="emotion-emoji" id="emotionEmoji">🎨</div>
+  <div class="emotion-text" id="emotionText">Coloca un color en el círculo</div>
+  <div class="emotion-phrase" id="emotionPhrase"></div>
+</div>
+
+<div class="color-palette">
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #f28b82;"></div>
+    <div class="color-name">Enojo</div>
+  </div>
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #81c995;"></div>
+    <div class="color-name">Alegría</div>
+  </div>
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #a7c7e7;"></div>
+    <div class="color-name">Calma</div>
+  </div>
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #fff475;"></div>
+    <div class="color-name">Energía</div>
+  </div>
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #ffffff; border: 1px solid #ddd;"></div>
+    <div class="color-name">Paz</div>
+  </div>
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #a9a9a9;"></div>
+    <div class="color-name">Tristeza</div>
+  </div>
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #f9ab5e;"></div>
+    <div class="color-name">Entusiasmo</div>
+  </div>
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #cba0ff;"></div>
+    <div class="color-name">Misterio</div>
+  </div>
+  <div class="color-item">
+    <div class="color-sample" style="background-color: #f7a8b8;"></div>
+    <div class="color-name">Cariño</div>
+  </div>
+</div>
+
 <div class="note">
-  Coloca una tarjeta o color dentro del círculo central.<br>
-  Necesitas HTTPS o localhost para que la cámara funcione.
+  <strong>Instrucciones:</strong> Coloca una tarjeta o color dentro del círculo central para detectar la emoción asociada.<br>
+  <em>Nota:</em> Necesitas HTTPS o localhost para que la cámara funcione correctamente.
+</div>
+
+<div class="footer">
+  Proyecto de Detector de Emociones | Desarrollado con HTML5, CSS3 y JavaScript
 </div>
 
 <script>
 const COLOR_WORD_MAP = {
-  red: { word:'enojo', face:'😠', phrase:'Hoy estás enojado , respira profundo', bg:'#f28b82' },
-  green: { word:'alegría', face:'😊', phrase:'Se te ve alegre , ¡genial!', bg:'#81c995' },
-  blue: { word:'calma', face:'😌', phrase:'Hoy estás tranquilo , sigue así', bg:'#a7c7e7' },
-  yellow: { word:'energía', face:'😁', phrase:'Se nota tu energía , ¡qué bueno!', bg:'#fff475' },
-  white: { word:'paz', face:'😇', phrase:'Hoy estás en paz , disfruta el momento', bg:'#ffffff' },
-  black: { word:'tristeza', face:'😢', phrase:'Hoy estás triste , ánimo, todo pasará', bg:'#a9a9a9' },
-  orange: { word:'entusiasmo', face:'🤩', phrase:'Se nota tu entusiasmo , ¡brillante!', bg:'#f9ab5e' },
-  purple: { word:'misterio', face:'🧐', phrase:'Hoy hay un toque de misterio , curioso', bg:'#cba0ff' },
-  pink: { word:'cariño', face:'🥰', phrase:'Hoy sientes cariño ', bg:'#f7a8b8' }
+  red: { word:'Enojo', face:'😠', phrase:'Hoy estás enojado, respira profundo', bg:'#f28b82' },
+  green: { word:'Alegría', face:'😊', phrase:'Se te ve alegre, ¡genial!', bg:'#81c995' },
+  blue: { word:'Calma', face:'😌', phrase:'Hoy estás tranquilo, sigue así', bg:'#a7c7e7' },
+  yellow: { word:'Energía', face:'😁', phrase:'Se nota tu energía, ¡qué bueno!', bg:'#fff475' },
+  white: { word:'Paz', face:'😇', phrase:'Hoy estás en paz, disfruta el momento', bg:'#ffffff' },
+  black: { word:'Tristeza', face:'😢', phrase:'Hoy estás triste, ánimo, todo pasará', bg:'#a9a9a9' },
+  orange: { word:'Entusiasmo', face:'🤩', phrase:'Se nota tu entusiasmo, ¡brillante!', bg:'#f9ab5e' },
+  purple: { word:'Misterio', face:'🧐', phrase:'Hoy hay un toque de misterio, curioso', bg:'#cba0ff' },
+  pink: { word:'Cariño', face:'🥰', phrase:'Hoy sientes cariño', bg:'#f7a8b8' }
 };
 
 const HSV_RANGES = {
@@ -123,6 +445,10 @@ const BOX_H_FRAC = 0.4;
 let video = document.getElementById('video');
 let overlay = document.getElementById('overlayCanvas');
 let statusEl = document.getElementById('status');
+let emotionEmoji = document.getElementById('emotionEmoji');
+let emotionText = document.getElementById('emotionText');
+let emotionPhrase = document.getElementById('emotionPhrase');
+let emotionDisplay = document.getElementById('emotionDisplay');
 let stream = null;
 let rafId = null;
 let lastDetected = null;
@@ -179,7 +505,7 @@ function detectColor(imageData, box){
   return ratio>=PERCENT_THRESHOLD ? {color:best, ratio} : {color:null, ratio};
 }
 
-// Dibujar overlay circular con ojos animados
+// Dibujar overlay circular sin ojos
 function drawOverlay(ctx, box, detected){
   const W=ctx.canvas.width, H=ctx.canvas.height;
   ctx.clearRect(0,0,W,H);
@@ -200,58 +526,83 @@ function drawOverlay(ctx, box, detected){
   ctx.drawImage(video,0,0,W,H);
   ctx.restore();
 
-  // Dibujar círculo borde
+  // Dibujar círculo borde con efecto de brillo
   ctx.beginPath();
   ctx.arc(cx,cy,radius,0,2*Math.PI);
-  ctx.strokeStyle='#6a8caf'; ctx.lineWidth=4;
+  ctx.strokeStyle='#6a8caf'; 
+  ctx.lineWidth=4;
+  ctx.stroke();
+  
+  // Efecto de brillo interior
+  ctx.beginPath();
+  ctx.arc(cx,cy,radius-2,0,2*Math.PI);
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; 
+  ctx.lineWidth=2;
   ctx.stroke();
 
-  // Ojos animados
-  const eyeOffsetX = radius*0.5;
-  const eyeOffsetY = radius*0.3;
-  const eyeRadius = radius*0.15;
-  const pupilRadius = radius*0.07;
-
-  let emotion = detected.color && COLOR_WORD_MAP[detected.color]? detected.color : null;
-  let pupilMove = 0;
-  if(emotion==='enojo') pupilMove=5;
-  if(emotion==='alegría') pupilMove=-5;
-  if(emotion==='tristeza') pupilMove=3;
-  if(emotion==='energía') pupilMove=-3;
-  if(emotion==='calma') pupilMove=0;
-
-  // Ojo izquierdo
-  ctx.beginPath();
-  ctx.arc(cx-eyeOffsetX, cy-eyeOffsetY, eyeRadius, 0, 2*Math.PI);
-  ctx.fillStyle='white';
-  ctx.fill();
-  ctx.strokeStyle='#333'; ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(cx-eyeOffsetX+pupilMove, cy-eyeOffsetY, pupilRadius, 0, 2*Math.PI);
-  ctx.fillStyle='black'; ctx.fill();
-
-  // Ojo derecho
-  ctx.beginPath();
-  ctx.arc(cx+eyeOffsetX, cy-eyeOffsetY, eyeRadius, 0, 2*Math.PI);
-  ctx.fillStyle='white';
-  ctx.fill();
-  ctx.strokeStyle='#333'; ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(cx+eyeOffsetX+pupilMove, cy-eyeOffsetY, pupilRadius, 0, 2*Math.PI);
-  ctx.fillStyle='black'; ctx.fill();
-
   // Emoji y texto
-  ctx.font=`${Math.round(Math.min(W,H)*0.08)}px sans-serif`;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font=`bold ${Math.round(Math.min(W,H)*0.08)}px sans-serif`;
+  ctx.textAlign='center'; 
+  ctx.textBaseline='middle';
   const face = detected.color && COLOR_WORD_MAP[detected.color]? COLOR_WORD_MAP[detected.color].face:'❓';
-  ctx.fillText(face, cx, cy+radius*0.5);
+  ctx.fillText(face, cx, cy);
 
   ctx.font=`${Math.round(Math.min(W,H)*0.05)}px sans-serif`;
   ctx.fillStyle='#333';
   const label = detected.color ? COLOR_WORD_MAP[detected.color].word : 'DESCONOCIDO';
-  ctx.fillText(label, cx, cy+radius*0.8);
+  ctx.fillText(label, cx, cy+radius*0.7);
+}
+
+function createConfetti(color) {
+  const colors = ['#f28b82', '#81c995', '#a7c7e7', '#fff475', '#f9ab5e', '#cba0ff', '#f7a8b8'];
+  const confettiColor = color || colors[Math.floor(Math.random() * colors.length)];
+  
+  for (let i = 0; i < 50; i++) {
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti';
+    confetti.style.setProperty('--confetti-color', confettiColor);
+    confetti.style.left = Math.random() * 100 + 'vw';
+    confetti.style.top = '-10px';
+    confetti.style.width = Math.random() * 10 + 5 + 'px';
+    confetti.style.height = Math.random() * 10 + 5 + 'px';
+    confetti.style.animationDelay = Math.random() * 2 + 's';
+    document.body.appendChild(confetti);
+    
+    setTimeout(() => {
+      confetti.remove();
+    }, 3000);
+  }
+}
+
+function updateEmotionDisplay(detected) {
+  if (detected.color && COLOR_WORD_MAP[detected.color]) {
+    const emotion = COLOR_WORD_MAP[detected.color];
+    emotionEmoji.textContent = emotion.face;
+    emotionText.textContent = emotion.word;
+    emotionPhrase.textContent = emotion.phrase;
+    
+    // Añadir animación
+    emotionEmoji.classList.add('emotion-change');
+    emotionDisplay.classList.add('active');
+    
+    setTimeout(() => {
+      emotionEmoji.classList.remove('emotion-change');
+    }, 500);
+    
+    // Cambiar color de fondo del display
+    emotionDisplay.style.background = `rgba(${parseInt(emotion.bg.slice(1,3), 16)}, ${parseInt(emotion.bg.slice(3,5), 16)}, ${parseInt(emotion.bg.slice(5,7), 16)}, 0.2)`;
+    
+    // Crear confetti para emociones positivas
+    if (['green', 'yellow', 'orange', 'pink'].includes(detected.color)) {
+      createConfetti(emotion.bg);
+    }
+  } else {
+    emotionEmoji.textContent = '🎨';
+    emotionText.textContent = 'Coloca un color en el círculo';
+    emotionPhrase.textContent = '';
+    emotionDisplay.style.background = 'rgba(255, 255, 255, 0.8)';
+    emotionDisplay.classList.remove('active');
+  }
 }
 
 function getFriendlyVoice() {
@@ -278,6 +629,7 @@ async function startCamera(){
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
     video.srcObject=stream;
     statusEl.textContent='Cámara activa';
+    statusEl.classList.add('active');
     await new Promise(r=>video.onloadedmetadata=r);
     overlay.width=video.videoWidth;
     overlay.height=video.videoHeight;
@@ -287,6 +639,7 @@ async function startCamera(){
   }catch(err){
     console.error(err);
     statusEl.textContent='Error al abrir la cámara: '+err.message;
+    statusEl.style.background = 'rgba(255, 0, 0, 0.1)';
   }
 }
 
@@ -294,6 +647,12 @@ function stopCamera(){
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   if(rafId) cancelAnimationFrame(rafId);
   statusEl.textContent='Cámara detenida';
+  statusEl.classList.remove('active');
+  emotionEmoji.textContent = '🎨';
+  emotionText.textContent = 'Cámara detenida';
+  emotionPhrase.textContent = '';
+  emotionDisplay.style.background = 'rgba(255, 255, 255, 0.8)';
+  emotionDisplay.classList.remove('active');
 }
 
 function loop(){
@@ -315,6 +674,9 @@ function loop(){
     const imageData=tctx.getImageData(0,0,tmp.width,tmp.height);
     const detected=detectColor(imageData, box);
     drawOverlay(ctx, box, detected);
+    
+    // Actualizar display de emociones
+    updateEmotionDisplay(detected);
 
     if(detected.color && COLOR_WORD_MAP[detected.color]){
       document.body.style.background = COLOR_WORD_MAP[detected.color].bg;
@@ -332,7 +694,12 @@ function loop(){
 
 document.getElementById('startBtn').addEventListener('click', ()=>{ if(!stream) startCamera(); });
 document.getElementById('stopBtn').addEventListener('click', ()=>stopCamera());
-startCamera();
+
+// Iniciar cámara automáticamente al cargar la página
+window.addEventListener('load', () => {
+  startCamera();
+});
+
 window.addEventListener('beforeunload', stopCamera);
 </script>
 </body>
