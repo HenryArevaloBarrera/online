@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Detector de Color</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: white;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    video {
+      width: 80%;
+      max-width: 640px;
+      border: 3px solid white;
+      border-radius: 12px;
+      margin-top: 20px;
+    }
+    canvas {
+      display: none;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    .color-box {
+      width: 100px;
+      height: 100px;
+      border-radius: 12px;
+      margin: 20px auto;
+      border: 3px solid #fff;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 Detector de Color</h1>
+  <video id="video" autoplay></video>
+  <canvas id="canvas"></canvas>
+  <div class="color-box" id="colorBox"></div>
+  <h2 id="colorName">Detectando...</h2>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const colorBox = document.getElementById("colorBox");
+    const colorName = document.getElementById("colorName");
+
+    // Pedir permiso para usar la cámara
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+        detectarColor();
+      })
+      .catch(err => {
+        console.error("Error al acceder a la cámara:", err);
+        colorName.textContent = "Error: No se pudo acceder a la cámara";
+      });
+
+    // Detectar color cada cierto tiempo
+    function detectarColor() {
+      const ctx = canvas.getContext("2d");
+
+      setInterval(() => {
+        // Dibujar un frame de la cámara en el canvas
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Tomar una pequeña región central
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const size = 20;
+        const imgData = ctx.getImageData(cx - size / 2, cy - size / 2, size, size);
+
+        // Promediar color RGB
+        let [r, g, b] = [0, 0, 0];
+        for (let i = 0; i < imgData.data.length; i += 4) {
+          r += imgData.data[i];
+          g += imgData.data[i + 1];
+          b += imgData.data[i + 2];
+        }
+        const n = imgData.data.length / 4;
+        r = Math.round(r / n);
+        g = Math.round(g / n);
+        b = Math.round(b / n);
+
+        // Determinar color más cercano
+        const detected = getColorName(r, g, b);
+
+        // Mostrar resultado
+        colorBox.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+        colorName.textContent = detected.word;
+      }, 300);
+    }
+
+    // Palabras asociadas a colores
+    const COLORS = [
+      { name: "rojo", rgb: [255, 0, 0], word: "ALTO" },
+      { name: "verde", rgb: [0, 255, 0], word: "SIGUE" },
+      { name: "azul", rgb: [0, 0, 255], word: "INFO" },
+      { name: "amarillo", rgb: [255, 255, 0], word: "PRECAUCIÓN" },
+      { name: "blanco", rgb: [255, 255, 255], word: "LIMPIO" },
+      { name: "negro", rgb: [0, 0, 0], word: "OBSTÁCULO" },
+    ];
+
+    function getColorName(r, g, b) {
+      let closest = COLORS[0];
+      let minDist = Infinity;
+      for (const c of COLORS) {
+        const [cr, cg, cb] = c.rgb;
+        const dist = Math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = c;
+        }
+      }
+      return closest;
+    }
+  </script>
+</body>
+</html>
