@@ -2,50 +2,81 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Detector de emociones - versión moderna</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Detector de emociones amigable</title>
 <style>
+  /* Estilo general */
   body {
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
     margin: 0;
-    background: #111;
-    color: #eee;
+    font-family: 'Segoe UI', Roboto, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 12px;
+    background: #f0f4f8;
+    color: #333;
+    min-height: 100vh;
+    gap: 16px;
+    padding: 16px;
   }
-  h2 { color: #2d7; }
+  h1 {
+    color: #6a8caf;
+    font-size: 2em;
+    text-align: center;
+  }
+
+  /* Contenedor de video y canvas */
   #container {
     position: relative;
-    max-width: 900px;
+    max-width: 720px;
     width: 100%;
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 0 20px #2d7;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    background: #fff;
   }
-  video, canvas { width: 100%; height: auto; display: block; }
+  video, canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
   #overlayCanvas { position: absolute; top: 0; left: 0; }
-  .controls { display: flex; gap: 8px; margin-top: 8px; }
+
+  /* Controles */
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-top: 8px;
+  }
   button {
-    padding: 8px 14px;
-    border-radius: 6px;
+    padding: 10px 18px;
     border: none;
-    background: #2d7;
-    color: #111;
+    border-radius: 12px;
+    background: #6a8caf;
+    color: #fff;
     font-weight: bold;
     cursor: pointer;
     transition: 0.2s;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
   }
-  button:hover { background: #39f; color: #fff; }
-  .status { font-size: 18px; min-width: 200px; }
-  .note { font-size: 13px; color: #ccc; max-width: 600px; text-align: center; }
+  button:hover { background: #8bb3d1; }
+
+  .status {
+    font-size: 16px;
+    min-width: 200px;
+  }
+
+  .note {
+    font-size: 14px;
+    color: #555;
+    text-align: center;
+    max-width: 600px;
+  }
 </style>
 </head>
 <body>
 
-<h2>Detector de emociones moderno 😃</h2>
+<h1>Detector de emociones amigable 😊</h1>
 <div id="container">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="overlayCanvas"></canvas>
@@ -58,18 +89,18 @@
 </div>
 
 <div class="note">
-  Coloca una tarjeta o muestra un color dentro del recuadro central.<br>
+  Coloca una tarjeta o un color dentro del recuadro central.<br>
   Necesitas HTTPS o localhost para que la cámara funcione.
 </div>
 
 <script>
 const COLOR_WORD_MAP = {
-  red: { word: 'ENOJO', face: '😠' },
-  green: { word: 'ALEGRE', face: '😊' },
-  blue: { word: 'CALMA', face: '😌' },
-  yellow: { word: 'ENERGÍA', face: '😁' },
-  white: { word: 'PAZ', face: '😇' },
-  black: { word: 'TRISTEZA', face: '😢' }
+  red: { word:'enojo', face:'😠', phrase: 'Hoy estás enojado 😠, trata de respirar' },
+  green: { word:'alegría', face:'😊', phrase: 'Se te ve alegre 😄, ¡qué bueno!' },
+  blue: { word:'calma', face:'😌', phrase: 'Hoy estás tranquilo 😌, sigue así' },
+  yellow: { word:'energía', face:'😁', phrase: 'Se nota tu energía 😁, ¡genial!' },
+  white: { word:'paz', face:'😇', phrase: 'Hoy estás en paz 😇, disfruta el momento' },
+  black: { word:'tristeza', face:'😢', phrase: 'Hoy estás triste 😢, ánimo, todo pasará' }
 };
 
 const HSV_RANGES = {
@@ -94,6 +125,7 @@ let rafId = null;
 let lastDetected = null;
 let lastSpeakTime = 0;
 
+// Funciones de conversión de color
 function rgbToHsv(r,g,b){
   r/=255; g/=255; b/=255;
   const mx=Math.max(r,g,b), mn=Math.min(r,g,b), diff=mx-mn;
@@ -113,8 +145,9 @@ function inRangeHSV(hsv, low, high){
   return H>=low[0] && H<=high[0] && S>=low[1] && S<=high[1] && V>=low[2] && V<=high[2];
 }
 
+// Detección de color
 function detectColor(imageData, box){
-  const {data,width,height} = imageData;
+  const {data,width,height}=imageData;
   const x1=Math.max(0,Math.floor(box.x));
   const y1=Math.max(0,Math.floor(box.y));
   const x2=Math.min(width,Math.floor(box.x+box.w));
@@ -145,36 +178,40 @@ function detectColor(imageData, box){
   return ratio>=PERCENT_THRESHOLD ? {color:best, ratio} : {color:null, ratio};
 }
 
+// Dibujar overlay
 function drawOverlay(ctx, box, detected){
   const W=ctx.canvas.width, H=ctx.canvas.height;
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle='rgba(0,0,0,0.5)';
+  ctx.fillStyle='rgba(255,255,255,0.2)';
   ctx.fillRect(0,0,W,H);
   ctx.clearRect(box.x, box.y, box.w, box.h);
-  ctx.strokeStyle='white'; ctx.lineWidth=Math.max(2, Math.round(Math.min(W,H)*0.004));
+  ctx.strokeStyle='#6a8caf'; ctx.lineWidth=4;
   ctx.strokeRect(box.x, box.y, box.w, box.h);
 
-  ctx.font=`${Math.round(Math.min(W,H)*0.08)}px sans-serif`;
+  ctx.font=`${Math.round(Math.min(W,H)*0.1)}px sans-serif`;
   ctx.textAlign='center'; ctx.textBaseline='middle';
   const face = detected.color && COLOR_WORD_MAP[detected.color]? COLOR_WORD_MAP[detected.color].face:'❓';
   ctx.fillText(face, box.x+box.w/2, box.y+box.h/2);
 
-  ctx.font=`${Math.round(Math.min(W,H)*0.04)}px sans-serif`;
-  ctx.fillStyle='white';
+  ctx.font=`${Math.round(Math.min(W,H)*0.05)}px sans-serif`;
+  ctx.fillStyle='#333';
   const label = detected.color ? COLOR_WORD_MAP[detected.color].word : 'DESCONOCIDO';
-  ctx.fillText(label, box.x+box.w/2, box.y+box.h+30);
+  ctx.fillText(label, box.x+box.w/2, box.y+box.h+40);
 }
 
-function speak(text){
+// Función para hablar frase
+function speakPhrase(text){
   if(!text) return;
   const now=Date.now();
-  if(now-lastSpeakTime<2000) return; // espera 2s entre palabras
+  if(now-lastSpeakTime<3000) return; // espera 3s entre frases
   const utter=new SpeechSynthesisUtterance(text);
   utter.lang='es-ES';
+  utter.rate=1;
   window.speechSynthesis.speak(utter);
   lastSpeakTime=now;
 }
 
+// Cámara
 async function startCamera(){
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
@@ -198,6 +235,7 @@ function stopCamera(){
   statusEl.textContent='Cámara detenida';
 }
 
+// Loop de detección
 function loop(){
   const ctx=overlay.getContext('2d');
   const tmp=document.createElement('canvas');
@@ -219,7 +257,7 @@ function loop(){
 
     if(detected.color!==lastDetected){
       lastDetected=detected.color;
-      if(detected.color) speak(COLOR_WORD_MAP[detected.color].word);
+      if(detected.color) speakPhrase(COLOR_WORD_MAP[detected.color].phrase);
     }
 
     rafId=requestAnimationFrame(frame);
