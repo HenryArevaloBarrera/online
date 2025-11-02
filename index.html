@@ -4,35 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Detector de Emociones 😊</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #111;
+      background-color: #0e0e0e;
       color: #fff;
       text-align: center;
       margin: 0;
       padding: 0;
     }
-    video {
-      border-radius: 10px;
-      border: 3px solid #fff;
-      width: 80%;
-      max-width: 640px;
-      margin-top: 20px;
-    }
-    canvas {
-      position: absolute;
-      left: 0;
-      top: 0;
-    }
     h1 {
       margin-top: 20px;
     }
-    #emotion {
+    video {
       margin-top: 20px;
+      border: 3px solid white;
+      border-radius: 12px;
+      width: 80%;
+      max-width: 640px;
+    }
+    #emotion {
       font-size: 2rem;
       font-weight: bold;
+      margin-top: 20px;
       color: #00e676;
       text-shadow: 0 0 10px #00e676;
     }
@@ -40,27 +35,34 @@
 </head>
 <body>
   <h1>🧠 Detector de Emociones</h1>
-  <video id="video" autoplay muted></video>
-  <h2 id="emotion">Cargando modelo...</h2>
+  <video id="video" width="640" height="480" autoplay muted></video>
+  <h2 id="emotion">Cargando modelos...</h2>
 
   <script>
     const video = document.getElementById("video");
     const emotionText = document.getElementById("emotion");
 
-    // Cargar modelos preentrenados
-    Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights/"),
-      faceapi.nets.faceExpressionNet.loadFromUri("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights/")
-    ]).then(startVideo);
+    // Cargar los modelos desde un repositorio público funcional
+    const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/models";
 
-    function startVideo() {
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+    ])
+    .then(iniciarVideo)
+    .catch(err => {
+      console.error("Error al cargar los modelos:", err);
+      emotionText.textContent = "Error cargando los modelos 😢";
+    });
+
+    function iniciarVideo() {
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(stream => {
           video.srcObject = stream;
           emotionText.textContent = "Detectando rostro...";
         })
         .catch(err => {
-          console.error(err);
+          console.error("Error al acceder a la cámara:", err);
           emotionText.textContent = "No se pudo acceder a la cámara 😢";
         });
     }
@@ -73,20 +75,20 @@
       faceapi.matchDimensions(canvas, displaySize);
 
       setInterval(async () => {
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+        const detections = await faceapi
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
           .withFaceExpressions();
 
-        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        const resized = faceapi.resizeResults(detections, displaySize);
         canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
 
-        faceapi.draw.drawDetections(canvas, resizedDetections);
-        faceapi.draw.drawFaceExpressions(canvas, resizedDetections);
+        faceapi.draw.drawDetections(canvas, resized);
+        faceapi.draw.drawFaceExpressions(canvas, resized);
 
         if (detections.length > 0) {
-          // Tomar la emoción con mayor probabilidad
-          const expressions = detections[0].expressions;
-          const emotion = Object.keys(expressions).reduce((a, b) =>
-            expressions[a] > expressions[b] ? a : b
+          const emotions = detections[0].expressions;
+          const maxEmotion = Object.keys(emotions).reduce((a, b) =>
+            emotions[a] > emotions[b] ? a : b
           );
 
           const emojis = {
@@ -99,7 +101,7 @@
             neutral: "😐 Neutral"
           };
 
-          emotionText.textContent = emojis[emotion] || emotion;
+          emotionText.textContent = emojis[maxEmotion] || maxEmotion;
         } else {
           emotionText.textContent = "Sin rostro detectado 👀";
         }
