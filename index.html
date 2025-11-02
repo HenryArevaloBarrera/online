@@ -1,112 +1,217 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Detector de Emociones 😊</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Detector de color (web con caritas)</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #0e0e0e;
-      color: #fff;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-    }
-    h1 {
-      margin-top: 20px;
-    }
-    video {
-      margin-top: 20px;
-      border: 3px solid white;
-      border-radius: 12px;
-      width: 80%;
-      max-width: 640px;
-    }
-    #emotion {
-      font-size: 2rem;
-      font-weight: bold;
-      margin-top: 20px;
-      color: #00e676;
-      text-shadow: 0 0 10px #00e676;
-    }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Segoe UI Emoji,Arial;margin:0;background:#111;color:#eee;display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px}
+    #container{position:relative;max-width:900px;width:100%}
+    video,canvas{width:100%;height:auto;border-radius:8px;background:#000}
+    #overlayCanvas{position:absolute;left:0;top:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    button{padding:6px 10px;border-radius:6px;border:none;background:#2d7;cursor:pointer}
+    .status{font-size:18px}
+    .note{font-size:13px;color:#ccc}
   </style>
 </head>
 <body>
-  <h1>🧠 Detector de Emociones</h1>
-  <video id="video" width="640" height="480" autoplay muted></video>
-  <h2 id="emotion">Cargando modelos...</h2>
+  <h2>Detector de color - versión web con caritas</h2>
+  <div id="container">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlayCanvas"></canvas>
+  </div>
+  <div class="controls">
+    <div class="status" id="status">Iniciando cámara...</div>
+    <button id="startBtn">Iniciar</button>
+    <button id="stopBtn">Detener</button>
+  </div>
+  <div class="note">Coloca una tarjeta dentro del recuadro central. Necesitas abrir esta página por HTTPS o desde <code>http://localhost</code> para que la cámara funcione.</div>
 
-  <script>
-    const video = document.getElementById("video");
-    const emotionText = document.getElementById("emotion");
+<script>
+const COLOR_WORD_MAP = {
+  red: {word:'ENOJO', face:'😠'},
+  green: {word:'ALEGRE', face:'😊'},
+  blue: {word:'CALMA', face:'😌'},
+  yellow: {word:'ENERGÍA', face:'😁'},
+  white: {word:'PAZ', face:'😇'},
+  black: {word:'TRISTEZA', face:'😢'}
+};
 
-    // Cargar los modelos desde un repositorio público funcional
-    const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/models";
+const HSV_RANGES = {
+  red: [ [ [0,100,50], [10,255,255] ], [ [160,100,50], [179,255,255] ] ],
+  green: [ [ [35,60,40], [85,255,255] ] ],
+  blue: [ [ [90,50,40], [140,255,255] ] ],
+  yellow: [ [ [20,100,100], [35,255,255] ] ],
+  white: [ [ [0,0,200], [179,40,255] ] ],
+  black: [ [ [0,0,0], [179,255,50] ] ]
+};
 
-    Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-      faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
-    ])
-    .then(iniciarVideo)
-    .catch(err => {
-      console.error("Error al cargar los modelos:", err);
-      emotionText.textContent = "Error cargando los modelos 😢";
-    });
+const PERCENT_THRESHOLD = 0.25;
+const BOX_W_FRAC = 0.4;
+const BOX_H_FRAC = 0.4;
+const PRINT_COOLDOWN = 800;
 
-    function iniciarVideo() {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          video.srcObject = stream;
-          emotionText.textContent = "Detectando rostro...";
-        })
-        .catch(err => {
-          console.error("Error al acceder a la cámara:", err);
-          emotionText.textContent = "No se pudo acceder a la cámara 😢";
-        });
+const video = document.getElementById('video');
+const overlay = document.getElementById('overlayCanvas');
+const statusEl = document.getElementById('status');
+let stream = null;
+let rafId = null;
+let lastPrintedColor = null;
+let lastPrintTime = 0;
+
+function rgbToHsv_opencvStyle(r,g,b){
+  r/=255; g/=255; b/=255;
+  const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+  const diff = mx - mn;
+  let h = 0, s = 0, v = mx;
+  if (diff !== 0){
+    if (mx === r) h = ( (g - b) / diff ) % 6;
+    else if (mx === g) h = ( (b - r) / diff ) + 2;
+    else h = ( (r - g) / diff ) + 4;
+    h = Math.round(h * 60);
+    if (h < 0) h += 360;
+  } else {h = 0;}
+  s = mx === 0 ? 0 : diff / mx;
+  const H = Math.round(h / 2);
+  const S = Math.round(s * 255);
+  const V = Math.round(v * 255);
+  return [H, S, V];
+}
+
+function inRangeHSV(hsv, low, high){
+  const [H,S,V] = hsv;
+  return H >= low[0] && H <= high[0] && S >= low[1] && S <= high[1] && V >= low[2] && V <= high[2];
+}
+
+function detectColorInImageData(imageData, box){
+  const {data, width, height} = imageData;
+  const x1 = Math.max(0, Math.floor(box.x));
+  const y1 = Math.max(0, Math.floor(box.y));
+  const x2 = Math.min(width, Math.floor(box.x + box.w));
+  const y2 = Math.min(height, Math.floor(box.y + box.h));
+  const h = y2 - y1;
+  const w = x2 - x1;
+  const totalPixels = h * w;
+  if (totalPixels <= 0) return {color:null, ratio:0};
+  const counts = {};
+  for (const c in HSV_RANGES) counts[c] = 0;
+
+  for (let yy = y1; yy < y2; yy++){
+    for (let xx = x1; xx < x2; xx++){
+      const idx = (yy * width + xx) * 4;
+      const r = data[idx], g = data[idx+1], b = data[idx+2];
+      const hsv = rgbToHsv_opencvStyle(r,g,b);
+      for (const [colorName, ranges] of Object.entries(HSV_RANGES)){
+        for (const rng of ranges){
+          const [low, high] = rng;
+          if (inRangeHSV(hsv, low, high)){
+            counts[colorName]++;
+            break;
+          }
+        }
+      }
+    }
+  }
+  let bestColor = null, bestRatio = 0;
+  for (const [c,count] of Object.entries(counts)){
+    const ratio = count / totalPixels;
+    if (ratio > bestRatio){ bestRatio = ratio; bestColor = c; }
+  }
+  if (bestRatio >= PERCENT_THRESHOLD) return {color:bestColor, ratio:bestRatio};
+  return {color:null, ratio:bestRatio};
+}
+
+function drawOverlay(ctx, box, detected){
+  const W = ctx.canvas.width, H = ctx.canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0,0,W,H);
+  ctx.clearRect(box.x, box.y, box.w, box.h);
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = Math.max(2, Math.round(Math.min(W,H)*0.004));
+  ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+  ctx.font = `${Math.round(Math.min(W,H)*0.08)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const face = detected.color && COLOR_WORD_MAP[detected.color] ? COLOR_WORD_MAP[detected.color].face : '❓';
+  ctx.fillText(face, box.x + box.w/2, box.y + box.h/2);
+
+  const label = detected.color ? `${COLOR_WORD_MAP[detected.color].word}` : 'DESCONOCIDO';
+  ctx.font = `${Math.round(Math.min(W,H)*0.04)}px sans-serif`;
+  ctx.fillStyle = 'white';
+  ctx.fillText(label, box.x + box.w/2, box.y + box.h + 30);
+}
+
+async function startCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = stream;
+    statusEl.textContent = 'Cámara activa';
+    await new Promise(r => video.onloadedmetadata = r);
+    overlay.width = video.videoWidth;
+    overlay.height = video.videoHeight;
+    overlay.style.width = video.clientWidth + 'px';
+    overlay.style.height = video.clientHeight + 'px';
+    loop();
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = 'Error al abrir la cámara: ' + err.message;
+  }
+}
+
+function stopCamera(){
+  if (stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  if (rafId) cancelAnimationFrame(rafId);
+  statusEl.textContent = 'Cámara detenida';
+}
+
+function loop(){
+  const ctx = overlay.getContext('2d');
+  const tmp = document.createElement('canvas');
+  tmp.width = video.videoWidth;
+  tmp.height = video.videoHeight;
+  const tctx = tmp.getContext('2d');
+
+  function frame(){
+    if (!stream) return;
+    tctx.drawImage(video,0,0,tmp.width,tmp.height);
+    const box_w = Math.round(tmp.width * BOX_W_FRAC);
+    const box_h = Math.round(tmp.height * BOX_H_FRAC);
+    const box_x = Math.round((tmp.width - box_w)/2);
+    const box_y = Math.round((tmp.height - box_h)/2);
+    const box = {x:box_x,y:box_y,w:box_w,h:box_h};
+
+    const imageData = tctx.getImageData(0,0,tmp.width,tmp.height);
+    const detected = detectColorInImageData(imageData, box);
+    drawOverlay(ctx, box, detected);
+
+    const now = Date.now();
+    if (detected.color !== lastPrintedColor && detected.color !== null){
+      const word = COLOR_WORD_MAP[detected.color].word;
+      console.log(`[${new Date().toLocaleTimeString()}] Color detectado: ${detected.color} -> ${word}`);
+      lastPrintedColor = detected.color;
+      lastPrintTime = now;
+    } else if (detected.color === null && lastPrintedColor !== null && (now - lastPrintTime) > PRINT_COOLDOWN){
+      console.log(`[${new Date().toLocaleTimeString()}] Color detectado: DESCONOCIDO`);
+      lastPrintedColor = null;
+      lastPrintTime = now;
     }
 
-    video.addEventListener("play", () => {
-      const canvas = faceapi.createCanvasFromMedia(video);
-      document.body.append(canvas);
+    rafId = requestAnimationFrame(frame);
+  }
+  frame();
+}
 
-      const displaySize = { width: video.width, height: video.height };
-      faceapi.matchDimensions(canvas, displaySize);
-
-      setInterval(async () => {
-        const detections = await faceapi
-          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-          .withFaceExpressions();
-
-        const resized = faceapi.resizeResults(detections, displaySize);
-        canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-
-        faceapi.draw.drawDetections(canvas, resized);
-        faceapi.draw.drawFaceExpressions(canvas, resized);
-
-        if (detections.length > 0) {
-          const emotions = detections[0].expressions;
-          const maxEmotion = Object.keys(emotions).reduce((a, b) =>
-            emotions[a] > emotions[b] ? a : b
-          );
-
-          const emojis = {
-            happy: "😄 Feliz",
-            sad: "😢 Triste",
-            angry: "😠 Enojado",
-            surprised: "😲 Sorprendido",
-            disgusted: "🤢 Disgustado",
-            fearful: "😨 Asustado",
-            neutral: "😐 Neutral"
-          };
-
-          emotionText.textContent = emojis[maxEmotion] || maxEmotion;
-        } else {
-          emotionText.textContent = "Sin rostro detectado 👀";
-        }
-      }, 500);
-    });
-  </script>
+document.getElementById('startBtn').addEventListener('click', ()=>{ if (!stream) startCamera(); });
+document.getElementById('stopBtn').addEventListener('click', ()=> stopCamera());
+startCamera();
+window.addEventListener('beforeunload', stopCamera);
+</script>
 </body>
 </html>
