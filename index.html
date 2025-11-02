@@ -626,7 +626,7 @@ function speakPhrase(text){
 
 async function startCamera(){
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
     video.srcObject=stream;
     statusEl.textContent='Cámara activa';
     statusEl.classList.add('active');
@@ -704,3 +704,4 @@ window.addEventListener('beforeunload', stopCamera);
 </script>
 </body>
 </html>
+
